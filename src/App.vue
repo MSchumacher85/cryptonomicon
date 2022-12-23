@@ -31,8 +31,9 @@
               <span
                   class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
                   v-for="(hints, idx) in this.hintsTickers"
-                  :key=idx>
-                {{hints}}
+                  :key=idx
+                  @click="ticker = hints">
+                {{ hints }}
               </span>
             </div>
             <div v-if="repeatTicker" class="text-sm text-red-600">Такой тикер
@@ -68,22 +69,22 @@
             v-model="filter"
         >
           <button
-                  v-if="page > 1"
-                  @click="page--"
-                  class="mx-2 my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+              v-if="page > 1"
+              @click="page--"
+              class="mx-2 my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
             Назад
           </button>
           <button
               v-if="hasNextPage"
-              @click = "page++"
+              @click="page++"
               class="mx-2 my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
             Вперед
           </button>
           <div>Страница: <span v-for="p in showPageList()"
-                               :key = p class="mx-2 pageHover">
+                               :key=p class="mx-2 pageHover">
             <a href="#"
                @click.prevent="page = p"
-               :class = "{active: page == p}"
+               :class="{active: page == p}"
             > {{ p }}
             </a></span></div>
         </div>
@@ -91,7 +92,7 @@
         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
           <div
               @click="select(t)"
-              v-for="t of filterTickers()" :key="t.name"
+              v-for="t of paginatedTickers" :key="t.name"
               class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
               :class="{'border-4': sel == t}"
           >
@@ -134,7 +135,7 @@
         </h3>
         <div class="flex items-end border-gray-600 border-b border-l h-64">
           <div
-              v-for="(bar, idx) of graphNormalize()"
+              v-for="(bar, idx) of graphNormalize"
               :key="idx"
               :style="{height: `${bar}%`}"
               class="bg-purple-800 border w-10"
@@ -183,11 +184,11 @@ export default {
   created() {
     const windowData = Object.fromEntries(new URL(window.location).searchParams.entries());
 
-    if(windowData.filter){
+    if (windowData.filter) {
       this.filter = windowData.filter;
     }
 
-    if(windowData.page){
+    if (windowData.page) {
       this.page = windowData.page;
     }
 
@@ -197,19 +198,26 @@ export default {
       this.tickerList = tickerData;
       this.tickerList.forEach(t => this.subscribeToTicker(t.name))
     }
-    console.log(window.location)
   },
-  watch:{
-    filter(){
+  watch: {
+    filter() {
       this.page = 1;
-
-      window.history.pushState(null, document.title, `${window.location.pathname}?filter=${this.filter}&page=${this.page}`)
     },
-    tickerList(){
+    tickerList() {
+      this.paginatedTickers;
+      return localStorage.setItem('cryptonomicon-list', JSON.stringify(this.tickerList));
+    },
+    pageFilterOptions(value) {
+      this.showHints();
+      window.history.pushState(null, document.title, `${window.location.pathname}?filter=${value.filter}&page=${value.page}`)
+    },
+    ticker() {
       this.showHints();
     },
-    page(){
-      window.history.pushState(null, document.title, `${window.location.pathname}?filter=${this.filter}&page=${this.page}`)
+    paginatedTickers(){
+      if(this.paginatedTickers.length === 0 && this.page > 1){
+        return this.page--;
+      }
     },
   },
   data() {
@@ -221,7 +229,6 @@ export default {
       loading: true,
       filter: '',
       page: 1,
-      hasNextPage: true,
       hintsTickers: [],
       pagesList: [],
     }
@@ -232,6 +239,35 @@ export default {
         return this.tickerList.find(t => t.name == this.ticker.toUpperCase())
       }
       return false
+    },
+    hasNextPage(){
+      return this.filteredTickers.length > this.endIndex;
+    },
+    paginatedTickers() {
+      return this.filteredTickers.slice(this.startIndex, this.endIndex);
+    },
+    filteredTickers(){
+      return this.tickerList.filter(t => t.name.includes(this.filter));
+    },
+    startIndex(){
+      return (this.page - 1) * 6;
+    },
+    endIndex(){
+      return this.page * 6;
+    },
+    graphNormalize() {
+      let minHeight = Math.min(...this.graph);
+      let maxHeight = Math.max(...this.graph);
+      if(minHeight === maxHeight){
+        return this.graph.map(() => 50);
+      }
+      return this.graph.map(price => 5 + (price - minHeight) * 95 / (maxHeight - minHeight))
+    },
+    pageFilterOptions(){
+      return {
+        page: this.page,
+        filter: this.filter
+      }
     }
   },
   methods: {//`https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD,JPY,EUR&api_key=e004f7b2af02f22f7f3ef33c8a7c11a2735db3a71667657f0e827af5114dc28b`
@@ -241,9 +277,10 @@ export default {
         name: this.ticker,
         price: null
       }
-      this.tickerList.push(currentTicker);
+      //this.tickerList.push(currentTicker);
+      this.tickerList = [...this.tickerList, currentTicker];
       this.filter = ''
-      localStorage.setItem('cryptonomicon-list', JSON.stringify(this.tickerList));
+
       this.subscribeToTicker(currentTicker.name);
 
       this.pagesList = this.showPageList();
@@ -259,21 +296,12 @@ export default {
       }, 5000);
       this.ticker = ''
     },
-    graphNormalize() {
-      let minHeight = Math.min(...this.graph);
-      let maxHeight = Math.max(...this.graph);
-      return this.graph.map(price => 5 + (price - minHeight) * 95 / (maxHeight - minHeight))
-    },
     removeTicker(ticker) {
       this.tickerList = this.tickerList.filter(t => t != ticker)
       if (ticker == this.sel) {
         this.sel = null
       }
-
-      localStorage.setItem('cryptonomicon-list', JSON.stringify(this.tickerList))
-
       this.pagesList = this.showPageList();
-
     },
     select(ticker) {
       this.sel = ticker
@@ -282,29 +310,21 @@ export default {
     removeSel() {
       this.sel = null;
     },
-    filterTickers(){
-      let start = (this.page - 1) * 6;
-      let end = this.page * 6;
-
-      const filteredTickers = this.tickerList.filter(t => t.name.includes(this.filter));
-      this.hasNextPage = filteredTickers.length > end;
-      return filteredTickers.slice(start,end);
-    },
-    async showHints(){
+    async showHints() {
       let getHints = await fetch('https://min-api.cryptocompare.com/data/all/coinlist?summary=true');
       let dataHints = await getHints.json();
 
-      for(var hints in dataHints.Data){
+      for (var hints in dataHints.Data) {
         this.hintsTickers.push(hints)
       }
-      this.hintsTickers = this.hintsTickers.filter(t => t.includes(this.ticker)).slice(0,4);
+      this.hintsTickers = this.hintsTickers.filter(t => t.includes(this.ticker)).slice(0, 4);
 
     },
-    showPageList(){
+    showPageList() {
       this.pagesList = []
       let lengthTickerList = this.tickerList.length / 6;
       lengthTickerList = Math.ceil(lengthTickerList);
-      for (let t = 1; t <= lengthTickerList; t++){
+      for (let t = 1; t <= lengthTickerList; t++) {
         this.pagesList.push(t);
       }
       return this.pagesList;
@@ -319,7 +339,8 @@ export default {
 .active {
   color: blue;
 }
-.pageHover:hover{
+
+.pageHover:hover {
   color: blue;
 }
 </style>
