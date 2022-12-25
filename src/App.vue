@@ -196,8 +196,8 @@ export default {
 
     if (tickerData) {
       this.tickerList = tickerData;
-      this.tickerList.forEach(t => this.subscribeToTicker(t.name))
     }
+    setInterval(this.subscribeToTicker, 5000);
   },
   watch: {
     filter() {
@@ -280,21 +280,27 @@ export default {
       //this.tickerList.push(currentTicker);
       this.tickerList = [...this.tickerList, currentTicker];
       this.filter = ''
-
-      this.subscribeToTicker(currentTicker.name);
+      this.ticker = ''
 
       this.pagesList = this.showPageList();
     },
-    subscribeToTicker(tickerName) {
-      setInterval(async () => {
+    async subscribeToTicker() {
+        const exechangeData = await loadTickers(this.tickerList.map(t => t.name));
+        this.tickerList.forEach(ticker => {
+          const price = exechangeData[ticker.name.toUpperCase()];
 
-        let exechangeData = await loadTickers(tickerName);
-        this.tickerList.find(t => t.name == tickerName).price = exechangeData.USD
-        if (tickerName == this.sel?.name) {
-          this.graph.push(exechangeData.USD);
-        }
-      }, 5000);
-      this.ticker = ''
+          if(!price){
+            ticker.price = '-';
+            return
+          }
+          const formattedPrice = price > 1 ? price.toFixed(2) : price.toPrecision(2);
+          ticker.price = formattedPrice;
+
+          if (ticker.name == this.sel?.name) {
+            this.graph.push(ticker.price);
+          }
+        })
+
     },
     removeTicker(ticker) {
       this.tickerList = this.tickerList.filter(t => t != ticker)
