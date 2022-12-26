@@ -175,7 +175,7 @@
 
 <script>
 
-import {loadTickers} from "@/api";
+import {subscribeToTicker, unsubscribeToTicker} from "@/api";
 export default {
   name: 'App',
   mounted() {
@@ -196,8 +196,11 @@ export default {
 
     if (tickerData) {
       this.tickerList = tickerData;
+
+      this.tickerList.forEach(ticker => {
+        subscribeToTicker(ticker.name, (newPrice) => this.updateTicker(ticker.name, newPrice)); //TODO понять
+      })
     }
-    setInterval(this.subscribeToTicker, 5000);
   },
   watch: {
     filter() {
@@ -279,34 +282,46 @@ export default {
       }
       //this.tickerList.push(currentTicker);
       this.tickerList = [...this.tickerList, currentTicker];
+
+      subscribeToTicker(this.ticker, (newPrice) => this.updateTicker(this.ticker, newPrice));//TODO понять
+
       this.filter = ''
       this.ticker = ''
-
       this.pagesList = this.showPageList();
     },
-    async subscribeToTicker() {
-        const exechangeData = await loadTickers(this.tickerList.map(t => t.name));
-        this.tickerList.forEach(ticker => {
-          const price = exechangeData[ticker.name.toUpperCase()];
+    async updateTickers(){
 
-          if(!price){
-            ticker.price = '-';
-            return
-          }
-          const formattedPrice = price > 1 ? price.toFixed(2) : price.toPrecision(2);
-          ticker.price = formattedPrice;
+    /* if(!this.tickerList.length){
+       return;
+     }
 
-          if (ticker.name == this.sel?.name) {
-            this.graph.push(ticker.price);
-          }
-        })
+      const exechangeData = await loadTickers(this.tickerList.map(t => t.name));
+      this.tickerList.forEach(ticker => {
+        const price = exechangeData[ticker.name.toUpperCase()];
 
+        const formattedPrice = price > 1 ? price.toFixed(2) : price.toPrecision(2);
+        ticker.price = formattedPrice ?? '-';
+
+        if (ticker.name == this.sel?.name) {
+          this.graph.push(ticker.price);
+        }
+      })*/
+
+    },
+    updateTicker(tickerName, price) { //TODO понять
+      this.tickerList
+          .filter(t => t.name === tickerName)
+          .forEach(t => {
+            const formattedPrice = price > 1 ? price.toFixed(2) : price.toPrecision(2);
+            t.price = formattedPrice;
+          });
     },
     removeTicker(ticker) {
       this.tickerList = this.tickerList.filter(t => t != ticker)
       if (ticker == this.sel) {
         this.sel = null
       }
+      unsubscribeToTicker(ticker);
       this.pagesList = this.showPageList();
     },
     select(ticker) {
