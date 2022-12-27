@@ -201,6 +201,7 @@ export default {
         subscribeToTicker(ticker.name, (newPrice) => this.updateTicker(ticker.name, newPrice)); //TODO понять
       })
     }
+    setInterval(this.updateTicker, 5000);
   },
   watch: {
     filter() {
@@ -282,8 +283,8 @@ export default {
       }
       //this.tickerList.push(currentTicker);
       this.tickerList = [...this.tickerList, currentTicker];
-
-      subscribeToTicker(this.ticker, (newPrice) => this.updateTicker(this.ticker, newPrice));//TODO понять
+      console.log(this.tickerList);
+      subscribeToTicker(currentTicker.name, (newPrice) => this.updateTicker(currentTicker.name, newPrice));//TODO понять
 
       this.filter = ''
       this.ticker = ''
