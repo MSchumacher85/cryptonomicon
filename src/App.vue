@@ -42,6 +42,7 @@
           </div>
         </div>
         <button
+            id="add"
             @click="add"
             type="button"
             class="my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
@@ -133,7 +134,7 @@
         <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">
           {{ sel.name }} - USD
         </h3>
-        <div class="flex items-end border-gray-600 border-b border-l h-64">
+        <div ref='graph' class="flex items-end border-gray-600 border-b border-l h-64">
           <div
               v-for="(bar, idx) of graphNormalize"
               :key="idx"
@@ -180,8 +181,14 @@ export default {
   name: 'App',
   mounted() {
     this.loading = false;
+
+    window.addEventListener('resize', this.calculateGraphElements);
+  },
+  beforeUnmount() {
+    window.removeEventListener('resize', this.calculateGraphElements);
   },
   created() {
+
     const windowData = Object.fromEntries(new URL(window.location).searchParams.entries());
 
     if (windowData.filter) {
@@ -204,6 +211,9 @@ export default {
     setInterval(this.updateTicker, 5000);
   },
   watch: {
+    graph(){
+      this.$nextTick().then(this.calculateGraphElements);
+    },
     filter() {
       this.page = 1;
     },
@@ -235,6 +245,7 @@ export default {
       page: 1,
       hintsTickers: [],
       pagesList: [],
+      maxGraphElements: 1,
     }
   },
   computed: {
@@ -276,6 +287,12 @@ export default {
   },
   methods: {//`https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD,JPY,EUR&api_key=e004f7b2af02f22f7f3ef33c8a7c11a2735db3a71667657f0e827af5114dc28b`
     //https://min-api.cryptocompare.com/data/all/coinlist?summary=true
+    calculateGraphElements(){
+      if(!this.$refs.graph){
+        return;
+      }
+      this.maxGraphElements = this.$refs.graph.clientWidth / 38;
+    },
     add() {
       let currentTicker = {
         name: this.ticker,
@@ -283,9 +300,8 @@ export default {
       }
       //this.tickerList.push(currentTicker);
       this.tickerList = [...this.tickerList, currentTicker];
-      console.log(this.tickerList);
-      subscribeToTicker(currentTicker.name, (newPrice) => this.updateTicker(currentTicker.name, newPrice));//TODO понять
 
+      subscribeToTicker(currentTicker.name, (newPrice) => this.updateTicker(currentTicker.name, newPrice));//TODO понять
       this.filter = ''
       this.ticker = ''
       this.pagesList = this.showPageList();
@@ -303,18 +319,23 @@ export default {
         const formattedPrice = price > 1 ? price.toFixed(2) : price.toPrecision(2);
         ticker.price = formattedPrice ?? '-';
 
-        if (ticker.name == this.sel?.name) {
-          this.graph.push(ticker.price);
-        }
       })*/
 
     },
-    updateTicker(tickerName, price) { //TODO понять
+    updateTicker(tickerName, price, currensy) { //TODO понять
       this.tickerList
           .filter(t => t.name === tickerName)
           .forEach(t => {
             const formattedPrice = price > 1 ? price.toFixed(2) : price.toPrecision(2);
             t.price = formattedPrice;
+            t.currencyToApi = currensy;
+
+            if (t.name == this.sel?.name) {
+              this.graph.push(t.price);
+              while(this.graph.length > this.maxGraphElements){
+                this.graph.shift();
+              }
+            }
           });
     },
     removeTicker(ticker) {
